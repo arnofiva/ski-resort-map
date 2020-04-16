@@ -27,10 +27,6 @@ define([
   const xmax = config.extent.xmax;
   const ymax = config.extent.ymax;
 
-  let minHeight = config.terrain.minHeight;
-  let maxHeight = config.terrain.maxHeight;
-
-
   let vertices = utils.getRandomPointsAsFlatVertexArray(xmin, xmax, ymin, ymax, 200);
 
   const elevationLayer = new ElevationLayer({
@@ -49,11 +45,11 @@ define([
           const terrain = new MeshComponent({
             faces: triangles.reverse(),
             shading: "flat",
-            // material: new MeshMaterialMetallicRoughness({
-            //   metallic: 0.5,
-            //   roughness: 0.8,
-            //   doubleSided: false,
-            // })
+            material: new MeshMaterialMetallicRoughness({
+              metallic: 0.5,
+              roughness: 0.8,
+              doubleSided: false
+            })
           });
 
           // Add another mesh component by duplicating the hull and placing it at 4000m
@@ -76,20 +72,22 @@ define([
             wallTriangles.push(vIdx2, vIdx3, vIdx1, vIdx4, vIdx3, vIdx2);
           }
 
-          const color = verticesZ.map(function (vertex) {
-            return getColorFromHeight(vertex[2]);
+          const vertexColor = verticesZ.map(function (vertex) {
+            const color = getColorFromHeight(vertex[2]);
+            return [color.r, color.g, color.b, 255];
           });
 
           const flatPosition = [].concat.apply([], verticesZ);
-          const flatColor = [].concat.apply([], color);
+          const flatColor = [].concat.apply([], vertexColor);
 
           const wall = new MeshComponent({
             faces: wallTriangles,
             shading: "flat",
             material: new MeshMaterialMetallicRoughness({
+              emissiveColor: "#2f5870",
               metallic: 0.5,
               roughness: 0.8,
-              doubleSided: false,
+              doubleSided: false
             })
           });
 
@@ -100,7 +98,7 @@ define([
             ],
             vertexAttributes: {
               position: flatPosition,
-              // color: flatColor
+              color: flatColor
             },
             spatialReference: SpatialReference.WebMercator
           });
@@ -122,34 +120,36 @@ define([
     return elevationLayer
       .queryElevation(multipoint, { demResolution: "finest-contiguous" })
       .then(function (result) {
-
-        let minHeightActual;
-        let maxHeightActual;
-
-        const exaggeratedPoints = result.geometry.points.map(function (p) {
+        return result.geometry.points.map(function (p) {
           const z = p[2] * config.terrain.exaggerationFactor + config.terrain.offset;
-          if (minHeight > z) {
-            minHeight = z;
-            minHeightActual = p[2];
-          }
-          if (maxHeight < z) {
-            maxHeight = z;
-            maxHeightActual = p[2];
-          }
           return [p[0], p[1], z];
         });
-
-        console.log(`MinMax ${minHeight}:${maxHeight} (${minHeightActual}:${maxHeightActual})`);
-
-        return exaggeratedPoints;
       })
       .catch(console.error);
   }
 
-  function getColorFromHeight(height) {
-    const startColor = new Color("#bfeaff");
-    const endColor = new Color("#dbe9ff");
-    let color = Color.blendColors(startColor, endColor, (height - minHeight) / (maxHeight - minHeight));
-    return [color.r, color.g, color.b, 255];
+  function getColorFromHeight(value) {
+
+    const stops = [
+      { value: 4000, color: new Color("#fff") },
+      { value: 5000, color: new Color("#d1eeff") },
+      { value: 6500, color: new Color("#dbe7ff") }
+    ];
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+
+      if (value < stop.value) {
+        if (i === 0) {
+          return stop.color;
+        }
+
+        const prev = stops[i - 1];
+
+        const weight = (value - prev.value) / (stop.value - prev.value);
+        return Color.blendColors(prev.color, stop.color, weight);
+      }
+    }
+
+    return stops[stops.length - 1].color;
   }
 });

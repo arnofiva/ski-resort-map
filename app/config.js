@@ -10,8 +10,8 @@ define([
     terrain: {
       minHeight: 0,
       maxHeight: 4000,
-      exaggerationFactor,
       offset: 4847.31787109375 - 2423.658935546875 * exaggerationFactor,
+      exaggerationFactor: 2,
     },
     extent: {
       xmin: -13253776.1039,

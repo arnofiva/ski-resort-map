@@ -11,6 +11,8 @@ define([
   "esri/layers/GraphicsLayer",
   "esri/layers/FeatureLayer",
   "esri/core/watchUtils",
+  "esri/geometry/support/meshUtils",
+  "app/utils",
   "esri/layers/ElevationLayer",
   "esri/layers/BaseElevationLayer",
 ], function (
@@ -26,6 +28,8 @@ define([
   GraphicsLayer,
   FeatureLayer,
   watchUtils,
+  meshUtils,
+  utils,
   ElevationLayer,
   BaseElevationLayer
   ) {
@@ -213,6 +217,13 @@ define([
             }
           }));
 
+          // Create elevation sampler to add z values to
+          // to features in layer
+          // meshUtils.createElevationSampler(mesh)
+          //   .then(function(sampler) {
+          //     utils.setZValues(layer, sampler, 0);
+          //   });
+
           view.when(function() {
             watchUtils.whenFalseOnce(view, "updating", function() {
                 document.getElementsByTagName("canvas")[0].style.filter = "opacity(1)";
@@ -278,23 +289,24 @@ define([
                 graphics.push(graphic);
               });
             });
-
-            const skiLiftPillarLayer = new FeatureLayer({
-              elevationInfo: {
-                mode: "absolute-height",
-                offset: 26
-              },
-              fields: [{
-                name: "ObjectID",
-                alias: "ObjectID",
-                type: "oid"
-              }],
-              renderer: renderers.getPillarRenderer(),
-              source: graphics
-            });
-            map.add(skiLiftPillarLayer);
           });
+
+        const skiLiftPillarLayer = new FeatureLayer({
+          elevationInfo: {
+            mode: "absolute-height",
+            offset: 26
+          },
+          title: "Ski lift pillars",
+          fields: [{
+            name: "ObjectID",
+            alias: "ObjectID",
+            type: "oid"
+          }],
+          renderer: renderers.getPillarRenderer(),
+          source: graphics
         });
+        map.add(skiLiftPillarLayer);
+      });
 
       const treesLayer = new FeatureLayer({
         url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/trees_mammoth/FeatureServer",
