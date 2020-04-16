@@ -1,13 +1,17 @@
 define([
   "esri/geometry/SpatialReference"
 ], function (SpatialReference) {
+
+  const exaggerationFactor = 2;
+
   return {
     appId: "iLylggsE3toQeCGV",
     portalUrl: "https://jsapi.maps.arcgis.com/",
     terrain: {
       minHeight: 0,
       maxHeight: 4000,
-      exaggerationFactor: 2,
+      exaggerationFactor,
+      offset: 4847.31787109375 - 2423.658935546875 * exaggerationFactor,
     },
     extent: {
       xmin: -13253776.1039,

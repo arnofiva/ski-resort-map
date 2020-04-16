@@ -49,11 +49,11 @@ define([
           const terrain = new MeshComponent({
             faces: triangles.reverse(),
             shading: "flat",
-            material: new MeshMaterialMetallicRoughness({
-              metallic: 0.5,
-              roughness: 0.8,
-              doubleSided: false,
-            })
+            // material: new MeshMaterialMetallicRoughness({
+            //   metallic: 0.5,
+            //   roughness: 0.8,
+            //   doubleSided: false,
+            // })
           });
 
           // Add another mesh component by duplicating the hull and placing it at 4000m
@@ -94,10 +94,13 @@ define([
           });
 
           const mesh = new Mesh({
-            components: [terrain, wall],
+            components: [
+              terrain,
+              wall,
+            ],
             vertexAttributes: {
               position: flatPosition,
-              color: flatColor
+              // color: flatColor
             },
             spatialReference: SpatialReference.WebMercator
           });
@@ -119,16 +122,26 @@ define([
     return elevationLayer
       .queryElevation(multipoint, { demResolution: "finest-contiguous" })
       .then(function (result) {
-        return result.geometry.points.map(function (p) {
-          const z = p[2] * config.terrain.exaggerationFactor;
+
+        let minHeightActual;
+        let maxHeightActual;
+
+        const exaggeratedPoints = result.geometry.points.map(function (p) {
+          const z = p[2] * config.terrain.exaggerationFactor + config.terrain.offset;
           if (minHeight > z) {
             minHeight = z;
+            minHeightActual = p[2];
           }
           if (maxHeight < z) {
             maxHeight = z;
+            maxHeightActual = p[2];
           }
           return [p[0], p[1], z];
         });
+
+        console.log(`MinMax ${minHeight}:${maxHeight} (${minHeightActual}:${maxHeightActual})`);
+
+        return exaggeratedPoints;
       })
       .catch(console.error);
   }

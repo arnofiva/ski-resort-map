@@ -10,7 +10,9 @@ define([
   "esri/geometry/Extent",
   "esri/layers/GraphicsLayer",
   "esri/layers/FeatureLayer",
-  "esri/core/watchUtils"
+  "esri/core/watchUtils",
+  "esri/layers/ElevationLayer",
+  "esri/layers/BaseElevationLayer",
 ], function (
   config,
   renderers,
@@ -23,12 +25,49 @@ define([
   Extent,
   GraphicsLayer,
   FeatureLayer,
-  watchUtils
+  watchUtils,
+  ElevationLayer,
+  BaseElevationLayer
   ) {
   return {
     init: function () {
 
+      const exaggeration = config.terrain.exaggerationFactor;
+      const offset = config.terrain.offset;
+
+      const ExaggeratedElevationLayer = BaseElevationLayer.createSubclass({
+
+        load: function() {
+          this._elevation = new ElevationLayer({
+            url:
+              "//elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer"
+          });
+
+          this.addResolvingPromise(this._elevation.load());
+        },
+
+        fetchTile: function(level, row, col) {
+          // calls fetchTile() on the elevationlayer for the tiles
+          // visible in the view
+          return this._elevation.fetchTile(level, row, col).then(
+            function(data) {
+              for (var i = 0; i < data.values.length; i++) {
+                data.values[i] = data.values[i] * exaggeration + offset;
+              }
+
+              return data;
+            }.bind(this)
+          );
+        }
+      });
+
+
       const map = new Map({
+        // basemap: "satellite",
+        // ground: "world-elevation",
+        // ground: {
+        //   layers: [new ExaggeratedElevationLayer()]
+        // }
         ground: {
           opacity: 0
         }
@@ -59,6 +98,16 @@ define([
           heading: 222,
           tilt: 72
         },
+
+        // 2D Camera
+        // camera: {
+        //   position: {
+        //     spatialReference: {"latestWkid":3857,"wkid":102100},
+        //     "x":-13249455.94195,"y":4527612.643648105,"z":15348.106710969625
+        //   },
+        //   "heading":180,
+        //   "tilt":0
+        // },
         spatialReference: SpatialReference.WebMercator,
         viewingMode: "local",
         qualityProfile: "high",
@@ -67,15 +116,102 @@ define([
 
       tin.createGeometry()
         .then(function (mesh) {
-          const graphic = new Graphic({
-            geometry: mesh,
-            symbol: {
-              type: "mesh-3d",
-              symbolLayers: [{ type: "fill" }]
+
+          const position = mesh.vertexAttributes.position;
+          const rings = [];
+
+          mesh.components.forEach(component => {
+            const faces = component.faces;
+
+            for (let i = 0; i < faces.length; i += 3) {
+              rings.push([[
+                position[faces[i] * 3],
+                position[faces[i] * 3 + 1],
+                position[faces[i] * 3 + 2] + 5,
+              ], [
+                position[faces[i + 1] * 3],
+                position[faces[i + 1] * 3 + 1],
+                position[faces[i + 1] * 3 + 2] + 5,
+              ], [
+                position[faces[i + 2] * 3],
+                position[faces[i + 2] * 3 + 1],
+                position[faces[i + 2] * 3 + 2] + 5,
+              ]].reverse());
             }
           });
 
-          view.graphics.add(graphic);
+          const layer = new GraphicsLayer({
+            elevationInfo: {
+              mode: "on-the-ground"
+            }
+          });
+
+          map.add(layer);
+
+          // layer.graphics.add(new Graphic({
+          //   geometry: {
+          //     type: "extent",
+          //     spatialReference: mesh.spatialReference,
+          //     ...config.extent},
+          //   symbol: {
+          //     type: "polygon-3d",
+          //     symbolLayers: [{
+          //       type: "fill",
+          //       material: { color: [0, 0, 0, 0] },
+          //       outline: {size: 1.2, color: "#00FFFF"}
+          //     }]
+          //   }
+          // }));
+
+          // layer.add(new Graphic({
+          //   geometry: {
+          //     type: "polygon",
+          //     spatialReference: mesh.spatialReference,
+          //     rings
+          //   },
+          //   symbol: {
+          //     type: "polygon-3d",
+          //     symbolLayers: [{
+          //       type: "fill",
+          //       material: { color: [150, 150, 150, 0] },
+          //       outline: {size: 1.2, color: "#00FFFF"}
+          //     }]
+          //   }
+          // }));
+
+          // for (let i = 0; i < position.length; i += 3) {
+
+          //   layer.graphics.add(new Graphic({
+          //     geometry: {
+          //       type: "point",
+          //       spatialReference: mesh.spatialReference,
+          //       x: position[i],
+          //       y: position[i+1]
+          //     },
+          //     symbol: {
+          //       type: "point-3d",
+          //       symbolLayers: [{
+          //         type: "icon",
+          //         size: 3,
+          //         resource: { primitive: "circle" },
+          //         material: { color: "#00FFFF" }
+          //       }]
+          //     }
+          //   }));
+          // }
+
+
+
+          layer.add(new Graphic({
+            geometry: mesh,
+            symbol: {
+              type: "mesh-3d",
+              symbolLayers: [{ type: "fill", material: {
+                color: "gray",
+                colorMixMode: "replace"
+              } }]
+            }
+          }));
 
           view.when(function() {
             watchUtils.whenFalseOnce(view, "updating", function() {
@@ -84,6 +220,9 @@ define([
             });
           });
         });
+
+      // Start Symbology Layers
+
 
       const pointsOfInterestLayer = new FeatureLayer({
         url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/interest_points_mammoth/FeatureServer",
@@ -285,6 +424,10 @@ define([
         }
         planeFlying = !planeFlying;
       });
+
+
+      // End Symbology Layers
+
     }
   }
 })
